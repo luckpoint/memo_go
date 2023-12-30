@@ -72,6 +72,7 @@ selectcmd = "peco"                # selector command for edit command
 grepcmd = "grep -nH"              # grep command executable
 assetsdir = "/path/to/assets"     # assets directory for serve command
 pluginsdir = "path/to/plugins"    # plugins directory for plugin commands. default '~/.config/memo/plugins'.
+extensions = [file extensions]    # optional specifiy file extensions default '.md'. example: [.md .txt]
 ```
 
 memodir, memotemplate and assetsdir can be used `~/` prefix or `$HOME` or OS specific environment variables. editor, selectcmd and grepcmd can be used placeholder below.
