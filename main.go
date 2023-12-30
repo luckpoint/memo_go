@@ -81,17 +81,18 @@ const templateMemoContent = `# {{.Title}}
 `
 
 type config struct {
-	MemoDir          string `toml:"memodir"`
-	Editor           string `toml:"editor"`
-	Column           int    `toml:"column"`
-	Width            int    `toml:"width"`
-	SelectCmd        string `toml:"selectcmd"`
-	GrepCmd          string `toml:"grepcmd"`
-	MemoTemplate     string `toml:"memotemplate"`
-	AssetsDir        string `toml:"assetsdir"`
-	PluginsDir       string `toml:"pluginsdir"`
-	TemplateDirFile  string `toml:"templatedirfile"`
-	TemplateBodyFile string `toml:"templatebodyfile"`
+	MemoDir          string   `toml:"memodir"`
+	Editor           string   `toml:"editor"`
+	Column           int      `toml:"column"`
+	Width            int      `toml:"width"`
+	SelectCmd        string   `toml:"selectcmd"`
+	GrepCmd          string   `toml:"grepcmd"`
+	MemoTemplate     string   `toml:"memotemplate"`
+	AssetsDir        string   `toml:"assetsdir"`
+	PluginsDir       string   `toml:"pluginsdir"`
+	TemplateDirFile  string   `toml:"templatedirfile"`
+	TemplateBodyFile string   `toml:"templatebodyfile"`
+	Extensions       []string `toml:"extensions"`
 }
 
 type entry struct {
@@ -265,11 +266,18 @@ func msg(err error) int {
 	return 0
 }
 
-func filterMarkdown(files []string) []string {
+func filterFilesWithExtension(files []string, extensions []string) []string {
+	if len(extensions) == 0 {
+		extensions = append(extensions, ".md")
+	}
+
 	var newfiles []string
 	for _, file := range files {
-		if strings.HasSuffix(file, ".md") {
-			newfiles = append(newfiles, file)
+		for _, ext := range extensions {
+			if strings.HasSuffix(file, ext) {
+				newfiles = append(newfiles, file)
+				break // Once a match is found, no need to check other extensions
+			}
 		}
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(newfiles)))
@@ -336,7 +344,7 @@ func cmdList(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	files = filterMarkdown(files)
+	files = filterFilesWithExtension(files, cfg.Extensions)
 	istty := isatty.IsTerminal(os.Stdout.Fd())
 	col := cfg.Column
 	if col == 0 {
@@ -557,7 +565,7 @@ func (cfg *config) filterFiles() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	files = filterMarkdown(files)
+	files = filterFilesWithExtension(files, cfg.Extensions)
 	var buf bytes.Buffer
 	err = cfg.runfilter(cfg.SelectCmd, strings.NewReader(strings.Join(files, "\n")), &buf)
 	if err != nil {
@@ -660,7 +668,7 @@ func cmdDelete(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	files = filterMarkdown(files)
+	files = filterFilesWithExtension(files, cfg.Extensions)
 	pat := c.Args().First()
 	var args []string
 	for _, file := range files {
@@ -714,7 +722,7 @@ func cmdGrep(c *cli.Context) error {
 		if err != nil || len(files) == 0 {
 			return err
 		}
-		files = filterMarkdown(files)
+		files = filterFilesWithExtension(files, cfg.Extensions)
 		for _, file := range files {
 			args = append(args, filepath.Join(cfg.MemoDir, file))
 		}
@@ -791,7 +799,7 @@ func cmdServe(c *cli.Context) error {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			files = filterMarkdown(files)
+			files = filterFilesWithExtension(files, cfg.Extensions)
 			var entries []entry
 			for _, file := range files {
 				entries = append(entries, entry{
