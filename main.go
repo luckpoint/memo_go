@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -335,15 +336,12 @@ func cmdList(c *cli.Context) error {
 		return err
 	}
 
-	f, err := os.Open(cfg.MemoDir)
+	maxDepth := 2
+	files, err := listFiles(cfg.MemoDir, maxDepth)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	files, err := f.Readdirnames(-1)
-	if err != nil {
-		return err
-	}
+
 	files = filterFilesWithExtension(files, cfg.Extensions)
 	istty := isatty.IsTerminal(os.Stdout.Fd())
 	col := cfg.Column
@@ -369,7 +367,7 @@ func cmdList(c *cli.Context) error {
 		if tmpl != nil {
 			var b bytes.Buffer
 			err := tmpl.Execute(&b, map[string]interface{}{
-				"File":     file,
+				"File":     filepath.Base(file),
 				"Title":    firstline(filepath.Join(cfg.MemoDir, file)),
 				"Fullpath": filepath.Join(cfg.MemoDir, file),
 			})
@@ -383,13 +381,14 @@ func cmdList(c *cli.Context) error {
 				wi = width
 			}
 			title := runewidth.Truncate(firstline(filepath.Join(cfg.MemoDir, file)), wi-4-col, "...")
-			file = runewidth.FillRight(runewidth.Truncate(file, col, "..."), col)
+			//file = runewidth.FillRight(runewidth.Truncate(file, col, "..."), col)
+			file = runewidth.FillRight(runewidth.Truncate(filepath.Base(file), col, ""), col)
 			fmt.Fprintf(color.Output, "%s : %s\n", color.GreenString(file), color.YellowString(title))
 		} else {
 			if fullpath {
 				file = filepath.Join(cfg.MemoDir, file)
 			}
-			fmt.Println(file)
+			fmt.Println(filepath.Base(file))
 		}
 	}
 	return nil
@@ -554,14 +553,35 @@ func filterTmpl(tmpl string) string {
 	})
 }
 
-func (cfg *config) filterFiles() ([]string, error) {
-	var files []string
-	f, err := os.Open(cfg.MemoDir)
+func listFiles(root string, maxDepth int) ([]string, error) {
+	var files []string // store files
+	//var walkFn fs.WalkDirFunc
+	walkFn := func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		depth := strings.Count(path[len(root):], string(os.PathSeparator))
+		if depth > maxDepth {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		files = append(files, strings.TrimPrefix(path, root))
+		return nil
+	}
+
+	err := filepath.WalkDir(root, walkFn)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	files, err = f.Readdirnames(-1)
+	return files, err
+}
+
+func (cfg *config) filterFiles() ([]string, error) {
+	var files []string
+	maxDepth := 2
+	files, err := listFiles(cfg.MemoDir, maxDepth)
 	if err != nil {
 		return nil, err
 	}
